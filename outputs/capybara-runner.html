@@ -1,0 +1,623 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Capybara Hop</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #243042;
+      --muted: #667085;
+      --panel: #fffaf0;
+      --line: #d9c8aa;
+      --sky: #9fdbf5;
+      --grass: #4d9f68;
+      --button: #f06c4f;
+      --button-dark: #bf4632;
+      --focus: #2364aa;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background:
+        radial-gradient(circle at 15% 10%, rgba(255, 239, 160, 0.75), transparent 28rem),
+        linear-gradient(180deg, #d6f4ff 0%, #fff7e8 62%, #f4e4c7 100%);
+      color: var(--ink);
+      font-family: ui-rounded, "Avenir Next", "Trebuchet MS", system-ui, sans-serif;
+      padding: 18px;
+    }
+
+    .game-shell {
+      width: min(100%, 980px);
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: end;
+      margin-bottom: 12px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2rem, 6vw, 4rem);
+      line-height: 0.95;
+      letter-spacing: 0;
+    }
+
+    .tagline {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: clamp(0.95rem, 2vw, 1.15rem);
+    }
+
+    .scoreboard {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: end;
+    }
+
+    .score-pill {
+      min-width: 96px;
+      padding: 8px 10px;
+      border: 2px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 250, 240, 0.9);
+      text-align: center;
+      box-shadow: 0 5px 0 rgba(104, 83, 47, 0.12);
+    }
+
+    .score-pill span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .score-pill strong {
+      display: block;
+      font-size: 1.45rem;
+      line-height: 1;
+    }
+
+    .stage-wrap {
+      position: relative;
+      overflow: hidden;
+      border: 3px solid #59452c;
+      border-radius: 8px;
+      background: var(--sky);
+      box-shadow: 0 14px 0 rgba(89, 69, 44, 0.18), 0 26px 40px rgba(36, 48, 66, 0.22);
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      max-height: 68vh;
+      background: var(--sky);
+      touch-action: manipulation;
+    }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 18px;
+      pointer-events: none;
+    }
+
+    .message {
+      width: min(94%, 460px);
+      padding: 18px;
+      border: 3px solid #59452c;
+      border-radius: 8px;
+      background: rgba(255, 250, 240, 0.95);
+      text-align: center;
+      box-shadow: 0 9px 0 rgba(89, 69, 44, 0.18);
+      transform: translateY(-6px);
+    }
+
+    .message[hidden] {
+      display: none;
+    }
+
+    .message h2 {
+      margin: 0 0 8px;
+      font-size: clamp(1.65rem, 5vw, 2.5rem);
+      line-height: 1;
+    }
+
+    .message p {
+      margin: 0 0 14px;
+      color: var(--muted);
+      font-size: 1rem;
+    }
+
+    button {
+      appearance: none;
+      min-height: 44px;
+      border: 0;
+      border-radius: 8px;
+      background: var(--button);
+      color: white;
+      cursor: pointer;
+      font: inherit;
+      font-weight: 900;
+      padding: 10px 18px;
+      box-shadow: 0 5px 0 var(--button-dark);
+      pointer-events: auto;
+    }
+
+    button:active {
+      transform: translateY(3px);
+      box-shadow: 0 2px 0 var(--button-dark);
+    }
+
+    button:focus-visible {
+      outline: 4px solid var(--focus);
+      outline-offset: 3px;
+    }
+
+    .controls {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 0.95rem;
+      font-weight: 700;
+    }
+
+    @media (max-width: 680px) {
+      body {
+        padding: 10px;
+      }
+
+      .topbar {
+        grid-template-columns: 1fr;
+        align-items: start;
+      }
+
+      .scoreboard {
+        justify-content: start;
+      }
+
+      .score-pill {
+        min-width: 82px;
+      }
+
+      .controls {
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      canvas {
+        aspect-ratio: 4 / 3;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="game-shell" aria-labelledby="game-title">
+    <section class="topbar">
+      <div>
+        <h1 id="game-title">Capybara Hop</h1>
+        <p class="tagline">Leap across the meadow and clear every capybara.</p>
+      </div>
+      <div class="scoreboard" aria-label="Game score">
+        <div class="score-pill"><span>Score</span><strong id="score">0</strong></div>
+        <div class="score-pill"><span>Best</span><strong id="best">0</strong></div>
+      </div>
+    </section>
+
+    <section class="stage-wrap">
+      <canvas id="game" width="960" height="540" aria-label="Runner game canvas"></canvas>
+      <div class="overlay">
+        <div class="message" id="message">
+          <h2 id="message-title">Ready?</h2>
+          <p id="message-text">Press jump when a capybara trots your way.</p>
+          <button id="start" type="button">Start Game</button>
+        </div>
+      </div>
+    </section>
+
+    <div class="controls" aria-label="Controls">
+      <span>Keyboard: Space or Arrow Up to jump</span>
+      <span>Mouse or touch: tap the game</span>
+    </div>
+  </main>
+
+  <script>
+    const canvas = document.querySelector("#game");
+    const ctx = canvas.getContext("2d");
+    const scoreEl = document.querySelector("#score");
+    const bestEl = document.querySelector("#best");
+    const message = document.querySelector("#message");
+    const messageTitle = document.querySelector("#message-title");
+    const messageText = document.querySelector("#message-text");
+    const startButton = document.querySelector("#start");
+
+    const state = {
+      status: "ready",
+      width: 960,
+      height: 540,
+      groundY: 412,
+      dpr: 1,
+      lastTime: 0,
+      elapsed: 0,
+      spawnTimer: 0,
+      score: 0,
+      best: Number(localStorage.getItem("capybara-hop-best") || 0),
+      speed: 360,
+      runner: {
+        x: 120,
+        y: 0,
+        width: 58,
+        height: 86,
+        vy: 0,
+        onGround: true,
+        step: 0
+      },
+      obstacles: [],
+      clouds: [
+        { x: 90, y: 82, scale: 1.1, speed: 18 },
+        { x: 410, y: 58, scale: 0.8, speed: 12 },
+        { x: 740, y: 110, scale: 1.3, speed: 16 }
+      ]
+    };
+
+    bestEl.textContent = state.best;
+
+    function resize() {
+      const rect = canvas.getBoundingClientRect();
+      state.dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+      canvas.width = Math.round(rect.width * state.dpr);
+      canvas.height = Math.round(rect.height * state.dpr);
+      state.width = rect.width;
+      state.height = rect.height;
+      state.groundY = state.height * 0.77;
+      ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
+      state.runner.y = state.groundY - state.runner.height;
+      draw();
+    }
+
+    function startGame() {
+      state.status = "playing";
+      state.lastTime = performance.now();
+      state.elapsed = 0;
+      state.spawnTimer = 0.55;
+      state.score = 0;
+      state.speed = Math.max(300, state.width * 0.42);
+      state.obstacles = [];
+      state.runner.vy = 0;
+      state.runner.onGround = true;
+      state.runner.y = state.groundY - state.runner.height;
+      scoreEl.textContent = "0";
+      message.hidden = true;
+      requestAnimationFrame(loop);
+    }
+
+    function endGame() {
+      state.status = "ended";
+      state.best = Math.max(state.best, Math.floor(state.score));
+      localStorage.setItem("capybara-hop-best", state.best);
+      bestEl.textContent = state.best;
+      messageTitle.textContent = "Try Again";
+      messageText.textContent = `You hopped past ${Math.floor(state.score)} points of capybara traffic.`;
+      startButton.textContent = "Restart";
+      message.hidden = false;
+    }
+
+    function jump() {
+      if (state.status !== "playing") {
+        startGame();
+        return;
+      }
+
+      if (state.runner.onGround) {
+        state.runner.vy = -Math.max(760, state.height * 1.55);
+        state.runner.onGround = false;
+      }
+    }
+
+    function spawnObstacle() {
+      const size = 0.84 + Math.random() * 0.28;
+      const width = 90 * size;
+      const height = 48 * size;
+      state.obstacles.push({
+        x: state.width + width,
+        y: state.groundY - height + 3,
+        width,
+        height,
+        passed: false,
+        bob: Math.random() * Math.PI * 2
+      });
+    }
+
+    function loop(time) {
+      if (state.status !== "playing") return;
+
+      const dt = Math.min(0.033, (time - state.lastTime) / 1000 || 0);
+      state.lastTime = time;
+      update(dt);
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    function update(dt) {
+      state.elapsed += dt;
+      state.speed += dt * 8;
+      state.score += dt * 10;
+      scoreEl.textContent = String(Math.floor(state.score));
+
+      state.runner.step += dt * 12;
+      state.runner.vy += Math.max(2100, state.height * 4.2) * dt;
+      state.runner.y += state.runner.vy * dt;
+
+      const floor = state.groundY - state.runner.height;
+      if (state.runner.y >= floor) {
+        state.runner.y = floor;
+        state.runner.vy = 0;
+        state.runner.onGround = true;
+      }
+
+      state.spawnTimer -= dt;
+      if (state.spawnTimer <= 0) {
+        spawnObstacle();
+        const difficulty = Math.max(0.72, 1.1 - state.elapsed * 0.012);
+        state.spawnTimer = (1 + Math.random() * 0.75) * difficulty;
+      }
+
+      for (const cloud of state.clouds) {
+        cloud.x -= cloud.speed * dt;
+        if (cloud.x < -150) cloud.x = state.width + 80;
+      }
+
+      for (const obstacle of state.obstacles) {
+        obstacle.x -= state.speed * dt;
+        obstacle.bob += dt * 8;
+        if (!obstacle.passed && obstacle.x + obstacle.width < state.runner.x) {
+          obstacle.passed = true;
+          state.score += 12;
+        }
+      }
+
+      state.obstacles = state.obstacles.filter((obstacle) => obstacle.x > -obstacle.width - 20);
+
+      const runnerHitbox = {
+        x: state.runner.x + 14,
+        y: state.runner.y + 10,
+        width: state.runner.width - 24,
+        height: state.runner.height - 14
+      };
+
+      for (const obstacle of state.obstacles) {
+        const capybaraHitbox = {
+          x: obstacle.x + obstacle.width * 0.12,
+          y: obstacle.y + obstacle.height * 0.16,
+          width: obstacle.width * 0.76,
+          height: obstacle.height * 0.76
+        };
+
+        if (intersects(runnerHitbox, capybaraHitbox)) {
+          endGame();
+          break;
+        }
+      }
+    }
+
+    function intersects(a, b) {
+      return a.x < b.x + b.width &&
+        a.x + a.width > b.x &&
+        a.y < b.y + b.height &&
+        a.y + a.height > b.y;
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, state.width, state.height);
+      drawSky();
+      drawGround();
+      drawRunner(state.runner);
+      for (const obstacle of state.obstacles) drawCapybara(obstacle);
+      drawForeground();
+    }
+
+    function drawSky() {
+      const gradient = ctx.createLinearGradient(0, 0, 0, state.height);
+      gradient.addColorStop(0, "#8dd8f2");
+      gradient.addColorStop(0.68, "#dff7ff");
+      gradient.addColorStop(1, "#fff2d4");
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, state.width, state.height);
+
+      ctx.fillStyle = "#ffe58a";
+      ctx.beginPath();
+      ctx.arc(state.width - 92, 78, 38, 0, Math.PI * 2);
+      ctx.fill();
+
+      for (const cloud of state.clouds) drawCloud(cloud);
+    }
+
+    function drawCloud(cloud) {
+      ctx.save();
+      ctx.translate(cloud.x, cloud.y);
+      ctx.scale(cloud.scale, cloud.scale);
+      ctx.fillStyle = "rgba(255, 255, 255, 0.92)";
+      roundedEllipse(-44, 2, 48, 22);
+      roundedEllipse(-14, -10, 42, 28);
+      roundedEllipse(20, 0, 54, 24);
+      roundedEllipse(54, 7, 40, 17);
+      ctx.restore();
+    }
+
+    function drawGround() {
+      ctx.fillStyle = "#80c978";
+      ctx.fillRect(0, state.groundY, state.width, state.height - state.groundY);
+      ctx.fillStyle = "#4d9f68";
+      ctx.fillRect(0, state.groundY + 10, state.width, 16);
+      ctx.fillStyle = "#2f7b52";
+      for (let x = -20; x < state.width + 30; x += 38) {
+        const sway = Math.sin(state.elapsed * 2 + x * 0.05) * 3;
+        ctx.beginPath();
+        ctx.moveTo(x, state.groundY + 12);
+        ctx.quadraticCurveTo(x + 8 + sway, state.groundY - 10, x + 17, state.groundY + 12);
+        ctx.fill();
+      }
+    }
+
+    function drawForeground() {
+      ctx.fillStyle = "rgba(89, 69, 44, 0.14)";
+      ctx.fillRect(0, state.groundY + 26, state.width, 5);
+    }
+
+    function drawRunner(runner) {
+      const x = runner.x;
+      const y = runner.y;
+      const bob = runner.onGround ? Math.sin(runner.step) * 3 : 0;
+      const leg = runner.onGround ? Math.sin(runner.step) * 9 : -4;
+
+      ctx.save();
+      ctx.translate(x, y + bob);
+
+      ctx.lineWidth = 7;
+      ctx.lineCap = "round";
+      ctx.strokeStyle = "#253045";
+      ctx.beginPath();
+      ctx.moveTo(21, 60);
+      ctx.lineTo(12 + leg, 82);
+      ctx.moveTo(37, 60);
+      ctx.lineTo(45 - leg, 82);
+      ctx.stroke();
+
+      ctx.fillStyle = "#ffcf5a";
+      ctx.strokeStyle = "#253045";
+      ctx.lineWidth = 4;
+      roundedRect(12, 24, 42, 44, 14);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = "#f06c4f";
+      roundedRect(17, 43, 32, 18, 8);
+      ctx.fill();
+
+      ctx.fillStyle = "#ffd9a7";
+      ctx.beginPath();
+      ctx.arc(33, 18, 19, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = "#253045";
+      ctx.beginPath();
+      ctx.arc(39, 14, 3, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = "#253045";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(38, 22, 7, 0.1, Math.PI * 0.8);
+      ctx.stroke();
+
+      ctx.fillStyle = "#7a4d2d";
+      ctx.beginPath();
+      ctx.moveTo(16, 10);
+      ctx.quadraticCurveTo(28, -7, 49, 6);
+      ctx.quadraticCurveTo(36, 3, 24, 13);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    function drawCapybara(capybara) {
+      const x = capybara.x;
+      const y = capybara.y + Math.sin(capybara.bob) * 1.5;
+      const w = capybara.width;
+      const h = capybara.height;
+
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.lineWidth = Math.max(2, w * 0.035);
+      ctx.strokeStyle = "#3d2b1f";
+
+      ctx.fillStyle = "#9b6d42";
+      roundedRect(w * 0.12, h * 0.18, w * 0.68, h * 0.58, h * 0.26);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = "#8b5c38";
+      roundedRect(w * 0.66, h * 0.25, w * 0.26, h * 0.42, h * 0.18);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = "#70482e";
+      ctx.beginPath();
+      ctx.arc(w * 0.75, h * 0.22, h * 0.08, 0, Math.PI * 2);
+      ctx.arc(w * 0.88, h * 0.28, h * 0.07, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#221915";
+      ctx.beginPath();
+      ctx.arc(w * 0.84, h * 0.41, h * 0.035, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#3d2b1f";
+      ctx.beginPath();
+      ctx.arc(w * 0.93, h * 0.5, h * 0.035, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = "#3d2b1f";
+      ctx.lineWidth = Math.max(3, w * 0.04);
+      ctx.beginPath();
+      ctx.moveTo(w * 0.26, h * 0.72);
+      ctx.lineTo(w * 0.22, h * 0.96);
+      ctx.moveTo(w * 0.62, h * 0.72);
+      ctx.lineTo(w * 0.68, h * 0.96);
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    function roundedRect(x, y, width, height, radius) {
+      const r = Math.min(radius, width / 2, height / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + width, y, x + width, y + height, r);
+      ctx.arcTo(x + width, y + height, x, y + height, r);
+      ctx.arcTo(x, y + height, x, y, r);
+      ctx.arcTo(x, y, x + width, y, r);
+      ctx.closePath();
+    }
+
+    function roundedEllipse(x, y, width, height) {
+      ctx.beginPath();
+      ctx.ellipse(x + width / 2, y + height / 2, width / 2, height / 2, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    window.addEventListener("resize", resize);
+    window.addEventListener("keydown", (event) => {
+      if (event.code === "Space" || event.code === "ArrowUp") {
+        event.preventDefault();
+        jump();
+      }
+    });
+    canvas.addEventListener("pointerdown", jump);
+    startButton.addEventListener("click", startGame);
+
+    resize();
+  </script>
+</body>
+</html>
